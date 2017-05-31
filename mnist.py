@@ -37,53 +37,62 @@ DATA = 'train-images.idx3-ubyte'
 LABELS = 'train-labels.idx1-ubyte'
 data_queue = tf.train.string_input_producer([DATA,])
 label_queue = tf.train.string_input_producer([LABELS,])
+
 NUM_EPOCHS = 2
 BATCH_SIZE = 10
-data_string = tf.read_file(DATA)
-labels_string = tf.read_file(LABELS)
 
-data_string = tf.substr(data_string, 16 , -1)
-pixels = tf.decode_raw(data_string, tf.uint8)
-unrolled_images = tf.reshape(pixels, [60000, 28*28, 1])
+reader_data = tf.FixedLengthRecordReader(record_bytes=28*28, header_bytes = 16)
+reader_labels = tf.FixedLengthRecordReader(record_bytes=1, header_bytes = 8)
 
-labels_string = tf.substr(labels_string, 8 , -1)
-labels = tf.decode_raw(labels_string, tf.uint8)
-labels = tf.reshape(labels, [60000,])
-image_batch, label_batch = tf.train.shuffle_batch( [unrolled_images, labels],
-                                                     batch_size=BATCH_SIZE,
-                                                     capacity=100,
-                                                     num_threads=2,
-                                                     min_after_dequeue=50)
+(_,data_rec) = reader_data.read(data_queue)
+(_,label_rec) = reader_labels.read(label_queue)
 
-# # Convolutional Layer #1 and Pooling Layer #1
-# conv1 = build_conv_layer(image_batch, CONV[0], True)
-#
-#  # Convolutional Layer #2 and Pooling Layer #2
-# conv2 = build_conv_layer(conv1, CONV[1], True)
-#
-# pool2_flat = tf.reshape(conv2, [-1, 14999 * 195 * 10])
-#
-# dense1 = tf.layers.dense(inputs=pool2_flat, units=15, activation=tf.nn.relu)
-# dropout = tf.layers.dropout(
-#           inputs=dense1, rate=0.4, training=True)
-# output = tf.nn.softmax(tf.layers.dense(inputs=dropout, units=10))
+image = tf.decode_raw(data_rec, tf.uint8)
+image = tf.reshape(image, [28, 28, 1])
+label = tf.decode_raw(label_rec, tf.uint8)
+label = tf.reshape(label, [1])
 
+
+image_batch, label_batch = tf.train.shuffle_batch([image, label],
+                                                 batch_size=BATCH_SIZE,
+                                                 capacity=100,
+                                                 min_after_dequeue = 30)
 
 
 sess = tf.InteractiveSession()
-sess.run(tf.global_variables_initializer())
+
 coord = tf.train.Coordinator()
 threads = tf.train.start_queue_runners(coord=coord)
 
+# Convolutional Layer #1 and Pooling Layer #1
+conv1 = build_conv_layer(image_batch, CONV[0], True)
 
-image = image_batch[2][2]
-im = image.eval()
-print("im_batch shape :" + str(image_batch.get_shape().as_list()))
-print("label shape :" + str(label_batch.get_shape().as_list()))
-print("label is :" + str(label_batch[2][2].eval()))
-# print("output is :" + str(conv1.eval()))
+ # Convolutional Layer #2 and Pooling Layer #2
+conv2 = build_conv_layer(conv1, CONV[1], True)
 
-plt.imshow(np.reshape(im, [-1, 28]), cmap='gray')
+pool2_flat = tf.reshape(conv2, [BATCH_SIZE, -1])
+
+dense1 = tf.layers.dense(inputs=pool2_flat, units=15, activation=tf.nn.relu)
+dropout = tf.layers.dropout(
+          inputs=dense1, rate=0.4, training=True)
+output = tf.nn.softmax(tf.layers.dense(inputs=dropout, units=10))
+
+onehot_labels = tf.one_hot(indices=tf.cast(label_batch, tf.int32), depth=10)
+loss = tf.losses.softmax_cross_entropy(
+  onehot_labels=onehot_labels, logits=output)
+
+train_op = tf.contrib.layers.optimize_loss(
+        loss=loss,
+        global_step=tf.contrib.framework.get_global_step(),
+        learning_rate=0.001,
+        optimizer="SGD")
+
+
+sess.run(tf.global_variables_initializer())
+image, label, output = sess.run([image_batch[2], label_batch[2], output[2]])
+plt.imshow(np.reshape(image, [28,28]));
 plt.show()
+print("label is " + str(label))
+print("output is " + str(output))
 coord.request_stop()
 coord.join(threads)
