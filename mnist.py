@@ -59,10 +59,9 @@ image_batch, label_batch = tf.train.shuffle_batch([image, label],
                                                  min_after_dequeue = 30)
 
 
-sess = tf.InteractiveSession()
 
-coord = tf.train.Coordinator()
-threads = tf.train.start_queue_runners(coord=coord)
+
+
 
 # Convolutional Layer #1 and Pooling Layer #1
 conv1 = build_conv_layer(image_batch, CONV[0], True)
@@ -87,12 +86,24 @@ train_op = tf.contrib.layers.optimize_loss(
         learning_rate=0.001,
         optimizer="SGD")
 
+sess = tf.Session()
+coord = tf.train.Coordinator()
+threads = tf.train.start_queue_runners(coord=coord)
 
 sess.run(tf.global_variables_initializer())
+
+for value in [label_batch, w, y, y_, loss]:
+    tf.scalar_summary(value.op.name, value)
+
+summaries = tf.merge_all_summaries()
+
+summary_writer = tf.train.SummaryWriter('log_simple_stats', sess.graph)
+
 image, label, output = sess.run([image_batch[2], label_batch[2], output[2]])
 plt.imshow(np.reshape(image, [28,28]));
 plt.show()
 print("label is " + str(label))
 print("output is " + str(output))
+print(sess.graph.get_collection(tf.GraphKeys.GLOBAL_VARIABLES))
 coord.request_stop()
 coord.join(threads)
