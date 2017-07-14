@@ -100,6 +100,11 @@ for value in [label_batch, output, loss]:
 summaries = tf.summary.merge_all()
 
 summary_writer = tf.summary.FileWriter('log_simple_stats', sess.graph)
+for i in range(100000):
+    sess.run(train_op)
+    if i%1000 == 0 :
+        loss_per_k = sess.run(loss)
+        print(loss_per_k)
 
 image, label, output = sess.run([image_batch[2], label_batch[2], output[2]])
 plt.imshow(np.reshape(image, [28,28]));
