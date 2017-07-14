@@ -39,7 +39,7 @@ data_queue = tf.train.string_input_producer([DATA,])
 label_queue = tf.train.string_input_producer([LABELS,])
 
 NUM_EPOCHS = 2
-BATCH_SIZE = 10
+BATCH_SIZE = 15
 
 reader_data = tf.FixedLengthRecordReader(record_bytes=28*28, header_bytes = 16)
 reader_labels = tf.FixedLengthRecordReader(record_bytes=1, header_bytes = 8)
@@ -76,7 +76,9 @@ dropout = tf.layers.dropout(
           inputs=dense1, rate=0.4, training=True)
 output = tf.nn.softmax(tf.layers.dense(inputs=dropout, units=10))
 
-onehot_labels = tf.one_hot(indices=tf.cast(label_batch, tf.int32), depth=10)
+onehot_labels = tf.one_hot(indices=tf.cast(tf.reshape(label_batch,[-1]), tf.int32), depth=10)
+print(label_batch.get_shape())
+print(onehot_labels.get_shape())
 loss = tf.losses.softmax_cross_entropy(
   onehot_labels=onehot_labels, logits=output)
 
@@ -88,16 +90,16 @@ train_op = tf.contrib.layers.optimize_loss(
 
 sess = tf.Session()
 coord = tf.train.Coordinator()
-threads = tf.train.start_queue_runners(coord=coord)
+threads = tf.train.start_queue_runners(coord=coord, sess=sess)
 
 sess.run(tf.global_variables_initializer())
 
-for value in [label_batch, w, y, y_, loss]:
-    tf.scalar_summary(value.op.name, value)
+for value in [label_batch, output, loss]:
+    tf.summary.tensor_summary(value.op.name, value)
 
-summaries = tf.merge_all_summaries()
+summaries = tf.summary.merge_all()
 
-summary_writer = tf.train.SummaryWriter('log_simple_stats', sess.graph)
+summary_writer = tf.summary.FileWriter('log_simple_stats', sess.graph)
 
 image, label, output = sess.run([image_batch[2], label_batch[2], output[2]])
 plt.imshow(np.reshape(image, [28,28]));
